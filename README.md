@@ -1,6 +1,6 @@
 # BBR TCP Tune
 
-用于 Linux VPS 的 BBR 与 TCP 参数一键配置脚本。脚本会将配置块追加到 `/etc/sysctl.conf`，不会覆盖该文件中原有的其他设置。
+用于 Linux VPS 的 BBR 与 TCP 参数一键配置脚本。脚本会在备份后清空并完全重写 `/etc/sysctl.conf`，只保留本项目提供的配置。
 
 ## 安装
 
@@ -36,7 +36,7 @@ sudo sh install.sh
 ```sh
 sudo sh install.sh --dry-run  # 仅查看将写入的 sysctl 配置
 sudo sh install.sh --apply    # 写入并立即加载配置（默认）
-sudo sh install.sh --remove   # 删除本脚本写入的配置块
+sudo sh install.sh --remove   # 备份后清空 /etc/sysctl.conf
 ```
 
 ## 写入的配置
@@ -60,8 +60,8 @@ net.ipv4.tcp_notsent_lowat = 131072
 - 需要 root 权限，并且 VPS 内核必须在 `net.ipv4.tcp_available_congestion_control` 中提供 `bbr`。
 - 大多数 Linux 4.9 及以上内核支持 BBR；部分 OpenVZ/LXC 容器可能限制 `sysctl` 参数写入。
 - 每次执行安装或卸载前，脚本都会创建带时间戳的 `/etc/sysctl.conf` 备份。
-- 脚本只管理 `# >>> bbr-tcp-tune >>>` 与 `# <<< bbr-tcp-tune <<<` 两个标记之间的配置，不会改动 `/etc/sysctl.conf` 中其他内容。
-- `--remove` 只会删除上述脚本管理的配置块，不会自动恢复之前的备份文件。
+- 执行安装会**清空并覆盖** `/etc/sysctl.conf`，文件中原有的所有 sysctl 配置都会被删除。
+- `--remove` 同样会备份后清空整个 `/etc/sysctl.conf`；需要恢复旧配置时，请从自动生成的备份文件手动恢复。
 - 公开网络脚本执行前请先审查内容。生产环境建议克隆固定的 tag 或 commit，而不是长期直接执行 `main` 分支。
 
 ## 验证是否生效
