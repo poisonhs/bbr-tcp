@@ -86,20 +86,26 @@ BACKUP="${CONF_FILE}.bak.$(date +%Y%m%d%H%M%S)"
 cp "$CONF_FILE" "$BACKUP"
 echo "Backed up existing file to: $BACKUP"
 
-# Replace the full sysctl.conf after creating a backup.
+# Apply settings one by one. Only settings accepted by this VPS are kept.
 TMP_FILE="${CONF_FILE}.tmp.$$"
-printf '%s\n' "$TUNING" > "$TMP_FILE"
+: > "$TMP_FILE"
+printf '%s\n' "$TUNING" | while IFS= read -r LINE || [ -n "$LINE" ]; do
+  [ -n "$LINE" ] || continue
+  KEY=${LINE%% =*}
+  VALUE=${LINE#*= }
+  if sysctl -w "$KEY=$VALUE" >/dev/null 2>&1; then
+    printf '%s\n' "$LINE" >> "$TMP_FILE"
+    echo "Applied: $KEY = $VALUE"
+  else
+    echo "Skipped (unsupported or restricted): $KEY"
+  fi
+done
+
 mv "$TMP_FILE" "$CONF_FILE"
 
-if ! sysctl -p "$CONF_FILE"; then
-  echo "Error: the configuration was saved but could not be fully applied." >&2
-  echo "Your VPS may restrict sysctl changes (common with some containers)." >&2
-  exit 1
-fi
-
 echo
-echo "BBR/TCP tuning applied successfully."
-printf 'Congestion control: '; sysctl -n net.ipv4.tcp_congestion_control
-printf 'Default qdisc:      '; sysctl -n net.core.default_qdisc
+echo "BBR/TCP tuning completed."
+printf 'Congestion control: '; sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true
+printf 'Default qdisc:      '; sysctl -n net.core.default_qdisc 2>/dev/null || echo 'unsupported'
 printf 'Config file:        %s\n' "$CONF_FILE"
-echo "The configuration persists after reboot."
+echo "Only successfully applied settings were saved. The configuration persists after reboot."
