@@ -1,16 +1,16 @@
 # BBR TCP Tune
 
-A small, idempotent Linux VPS installer for enabling BBR and applying conservative TCP buffer tuning by adding a managed block to `/etc/sysctl.conf`. Existing settings outside that block are preserved.
+用于 Linux VPS 的 BBR 与 TCP 参数一键配置脚本。脚本会将配置块追加到 `/etc/sysctl.conf`，不会覆盖该文件中原有的其他设置。
 
-## Install
+## 安装
 
-Run the script as root:
+以 root 身份运行脚本：
 
 ```sh
 sudo sh install.sh
 ```
 
-Or execute it directly after cloning:
+或者克隆仓库后执行：
 
 ```sh
 git clone https://github.com/poisonhs/bbr-tcp.git
@@ -18,21 +18,28 @@ cd bbr-tcp
 sudo sh install.sh
 ```
 
-One-line install after publishing the repository:
+一键安装：
 
 ```sh
 bash <(curl -fsSL https://raw.githubusercontent.com/poisonhs/bbr-tcp/main/install.sh)
 ```
 
-## Commands
+如果系统没有安装 `bash`，可以使用：
 
 ```sh
-sudo sh install.sh --dry-run  # show the sysctl configuration
-sudo sh install.sh --apply    # write and apply it
-sudo sh install.sh --remove   # remove this script's configuration
+curl -fsSL https://raw.githubusercontent.com/poisonhs/bbr-tcp/main/install.sh -o install.sh
+sudo sh install.sh
 ```
 
-## Applied settings
+## 命令
+
+```sh
+sudo sh install.sh --dry-run  # 仅查看将写入的 sysctl 配置
+sudo sh install.sh --apply    # 写入并立即加载配置（默认）
+sudo sh install.sh --remove   # 删除本脚本写入的配置块
+```
+
+## 写入的配置
 
 ```conf
 net.core.default_qdisc = fq
@@ -48,20 +55,25 @@ net.ipv4.tcp_congestion_control = bbr
 net.ipv4.tcp_notsent_lowat = 131072
 ```
 
-## Requirements and notes
+## 注意事项
 
-- Requires root privileges and a Linux kernel exposing `bbr` in `net.ipv4.tcp_available_congestion_control`.
-- Most Linux kernels 4.9+ provide BBR, but OpenVZ/LXC-style containers may restrict `sysctl` writes.
-- The installer creates a timestamped backup of `/etc/sysctl.conf` before every apply or remove action.
-- The installer manages only the block between `# >>> bbr-tcp-tune >>>` and `# <<< bbr-tcp-tune <<<`; all other `/etc/sysctl.conf` settings are preserved.
-- `--remove` deletes only that managed block. It does not restore a previous backup automatically.
-- Review remote scripts before running them. For production use, clone a tagged release or pin a commit hash instead of executing an unpinned branch URL.
+- 需要 root 权限，并且 VPS 内核必须在 `net.ipv4.tcp_available_congestion_control` 中提供 `bbr`。
+- 大多数 Linux 4.9 及以上内核支持 BBR；部分 OpenVZ/LXC 容器可能限制 `sysctl` 参数写入。
+- 每次执行安装或卸载前，脚本都会创建带时间戳的 `/etc/sysctl.conf` 备份。
+- 脚本只管理 `# >>> bbr-tcp-tune >>>` 与 `# <<< bbr-tcp-tune <<<` 两个标记之间的配置，不会改动 `/etc/sysctl.conf` 中其他内容。
+- `--remove` 只会删除上述脚本管理的配置块，不会自动恢复之前的备份文件。
+- 公开网络脚本执行前请先审查内容。生产环境建议克隆固定的 tag 或 commit，而不是长期直接执行 `main` 分支。
 
-## Verify
+## 验证是否生效
 
 ```sh
 sysctl net.ipv4.tcp_congestion_control
 sysctl net.core.default_qdisc
 ```
 
-Expected values are `bbr` and `fq`.
+预期输出分别为：
+
+```text
+bbr
+fq
+```
