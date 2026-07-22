@@ -61,6 +61,7 @@ net.ipv4.tcp_notsent_lowat = 131072
 - 大多数 Linux 4.9 及以上内核支持 BBR；部分 OpenVZ/LXC 容器可能限制 `sysctl` 参数写入。
 - 每次执行安装或卸载前，脚本都会创建带时间戳的 `/etc/sysctl.conf` 备份。
 - 执行安装会**清空并覆盖** `/etc/sysctl.conf`，文件中原有的所有 sysctl 配置都会被删除。
+- 部分 OpenVZ/LXC 容器可能不支持或禁止修改某些参数。脚本会自动跳过这些参数，继续应用其余参数，并且只将成功应用的参数写入 `/etc/sysctl.conf`。
 - `--remove` 同样会备份后清空整个 `/etc/sysctl.conf`；需要恢复旧配置时，请从自动生成的备份文件手动恢复。
 - 公开网络脚本执行前请先审查内容。生产环境建议克隆固定的 tag 或 commit，而不是长期直接执行 `main` 分支。
 
