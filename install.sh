@@ -4,8 +4,6 @@
 set -eu
 
 CONF_FILE=/etc/sysctl.conf
-BEGIN_MARKER='# >>> bbr-tcp-tune >>>'
-END_MARKER='# <<< bbr-tcp-tune <<<'
 MODE=apply
 
 usage() {
@@ -28,25 +26,20 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if [ "$MODE" = remove ]; then
-  if [ -f "$CONF_FILE" ] && grep -Fq "$BEGIN_MARKER" "$CONF_FILE"; then
+  if [ -f "$CONF_FILE" ]; then
     BACKUP="${CONF_FILE}.bak.$(date +%Y%m%d%H%M%S)"
     cp "$CONF_FILE" "$BACKUP"
-    TMP_FILE="${CONF_FILE}.tmp.$$"
-    sed "\\|$BEGIN_MARKER|,\\|$END_MARKER|d" "$CONF_FILE" > "$TMP_FILE"
-    mv "$TMP_FILE" "$CONF_FILE"
-    echo "Removed the managed BBR/TCP block from: $CONF_FILE"
+    : > "$CONF_FILE"
+    echo "Cleared: $CONF_FILE"
     echo "Backup saved to: $BACKUP"
-    sysctl -p "$CONF_FILE" >/dev/null
     echo "Reboot to clear values that remain only in memory."
   else
-    echo "Nothing to remove: managed block was not found in $CONF_FILE."
+    echo "Nothing to remove: $CONF_FILE does not exist."
   fi
   exit 0
 fi
 
-TUNING='# >>> bbr-tcp-tune >>>
-# Managed by bbr-tcp-tune install.sh
-net.core.default_qdisc = fq
+TUNING='net.core.default_qdisc = fq
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 
@@ -57,8 +50,7 @@ net.ipv4.tcp_rmem = 4096 87380 33554432
 net.ipv4.tcp_wmem = 4096 65536 67108864
 net.ipv4.tcp_mtu_probing = 1
 net.ipv4.tcp_congestion_control = bbr
-net.ipv4.tcp_notsent_lowat = 131072
-# <<< bbr-tcp-tune <<<'
+net.ipv4.tcp_notsent_lowat = 131072'
 
 if [ "$MODE" = dry-run ]; then
   echo "$TUNING"
@@ -94,10 +86,9 @@ BACKUP="${CONF_FILE}.bak.$(date +%Y%m%d%H%M%S)"
 cp "$CONF_FILE" "$BACKUP"
 echo "Backed up existing file to: $BACKUP"
 
-# Replace only this script's marked block, preserving all existing sysctl settings.
+# Replace the full sysctl.conf after creating a backup.
 TMP_FILE="${CONF_FILE}.tmp.$$"
-sed "\\|$BEGIN_MARKER|,\\|$END_MARKER|d" "$CONF_FILE" > "$TMP_FILE"
-printf '\n%s\n' "$TUNING" >> "$TMP_FILE"
+printf '%s\n' "$TUNING" > "$TMP_FILE"
 mv "$TMP_FILE" "$CONF_FILE"
 
 if ! sysctl -p "$CONF_FILE"; then
