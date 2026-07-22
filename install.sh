@@ -8,12 +8,12 @@ MODE=apply
 
 usage() {
   printf '%s\n' \
-    'Usage: sudo sh install.sh [OPTION]' \
+    '用法：sudo sh install.sh [选项]' \
     '' \
-    '  --apply      Write and load BBR/TCP tuning configuration (default)' \
-    '  --remove     Remove this script'\''s configuration and reload sysctl settings' \
-    '  --dry-run    Show the configuration without changing the system' \
-    '  -h, --help   Show this help'
+    '  --apply      写入并立即应用 BBR/TCP 配置（默认）' \
+    '  --remove     备份后清空 /etc/sysctl.conf' \
+    '  --dry-run    仅显示将尝试应用的配置，不修改系统' \
+    '  -h, --help   显示此帮助'
 }
 
 [ "${1:-}" = "--remove" ] && MODE=remove
@@ -21,7 +21,7 @@ usage() {
 case "${1:-}" in ""|--apply|--remove|--dry-run) ;; -h|--help) usage; exit 0 ;; *) usage >&2; exit 2 ;; esac
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Error: please run as root, for example: sudo sh install.sh" >&2
+  echo "错误：请使用 root 权限运行，例如：sudo sh install.sh" >&2
   exit 1
 fi
 
@@ -30,11 +30,11 @@ if [ "$MODE" = remove ]; then
     BACKUP="${CONF_FILE}.bak.$(date +%Y%m%d%H%M%S)"
     cp "$CONF_FILE" "$BACKUP"
     : > "$CONF_FILE"
-    echo "Cleared: $CONF_FILE"
-    echo "Backup saved to: $BACKUP"
-    echo "Reboot to clear values that remain only in memory."
+    echo "已清空配置文件：$CONF_FILE"
+    echo "备份文件：$BACKUP"
+    echo "部分内核参数仍可能保留在内存中；如需完全恢复，请重启系统。"
   else
-    echo "Nothing to remove: $CONF_FILE does not exist."
+    echo "无需清空：$CONF_FILE 不存在。"
   fi
   exit 0
 fi
@@ -58,7 +58,7 @@ if [ "$MODE" = dry-run ]; then
 fi
 
 if ! command -v sysctl >/dev/null 2>&1; then
-  echo "Error: sysctl was not found." >&2
+  echo "错误：系统中未找到 sysctl 命令。" >&2
   exit 1
 fi
 
@@ -71,9 +71,9 @@ AVAILABLE="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || 
 case " $AVAILABLE " in
   *" bbr "*) ;;
   *)
-    echo "Error: this VPS kernel does not expose BBR." >&2
-    echo "Available algorithms: ${AVAILABLE:-unknown}" >&2
-    echo "Use a Linux kernel with BBR support (normally 4.9+) or ask your VPS provider." >&2
+    echo "错误：当前 VPS 内核不支持 BBR。" >&2
+    echo "可用拥塞控制算法：${AVAILABLE:-未知}" >&2
+    echo "请使用支持 BBR 的 Linux 内核（通常为 4.9+），或联系 VPS 服务商。" >&2
     exit 1
     ;;
 esac
@@ -84,9 +84,9 @@ fi
 
 BACKUP="${CONF_FILE}.bak.$(date +%Y%m%d%H%M%S)"
 cp "$CONF_FILE" "$BACKUP"
-echo "Backed up existing file to: $BACKUP"
+echo "已备份原配置到：$BACKUP"
 
-# Apply settings one by one. Only settings accepted by this VPS are kept.
+# 逐项尝试应用；只有 VPS 接受的参数才会写入配置文件。
 TMP_FILE="${CONF_FILE}.tmp.$$"
 : > "$TMP_FILE"
 printf '%s\n' "$TUNING" | while IFS= read -r LINE || [ -n "$LINE" ]; do
@@ -95,17 +95,17 @@ printf '%s\n' "$TUNING" | while IFS= read -r LINE || [ -n "$LINE" ]; do
   VALUE=${LINE#*= }
   if sysctl -w "$KEY=$VALUE" >/dev/null 2>&1; then
     printf '%s\n' "$LINE" >> "$TMP_FILE"
-    echo "Applied: $KEY = $VALUE"
+    echo "已应用：$KEY = $VALUE"
   else
-    echo "Skipped (unsupported or restricted): $KEY"
+    echo "已跳过（参数不存在或 VPS 限制）：$KEY"
   fi
 done
 
 mv "$TMP_FILE" "$CONF_FILE"
 
 echo
-echo "BBR/TCP tuning completed."
-printf 'Congestion control: '; sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true
-printf 'Default qdisc:      '; sysctl -n net.core.default_qdisc 2>/dev/null || echo 'unsupported'
-printf 'Config file:        %s\n' "$CONF_FILE"
-echo "Only successfully applied settings were saved. The configuration persists after reboot."
+echo "BBR/TCP 调优已完成。"
+printf '当前拥塞控制算法：'; sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo '未知'
+printf '默认队列规则：    '; sysctl -n net.core.default_qdisc 2>/dev/null || echo '不支持'
+printf '配置文件：        %s\n' "$CONF_FILE"
+echo "只有成功应用的参数已写入配置文件，重启后会自动加载。"
